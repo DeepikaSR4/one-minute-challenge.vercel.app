@@ -1,28 +1,46 @@
-import { createClient } from '@/utils/supabase/server'
-import { redirect } from 'next/navigation'
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { startChallenge } from './actions'
+import { db } from '@/lib/firebase/config'
+import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { useAuth } from '@/lib/firebase/AuthProvider'
 import { Lock, Play } from 'lucide-react'
 
-export default async function DashboardPage() {
-    const supabase = await createClient()
+export default function DashboardPage() {
+    const { user, loading } = useAuth()
+    const router = useRouter()
+    const [startDateStr, setStartDateStr] = useState<string | null | undefined>(undefined)
+    const [starting, setStarting] = useState(false)
 
-    const {
-        data: { user },
-    } = await supabase.auth.getUser()
+    useEffect(() => {
+        if (!loading && !user) router.replace('/login')
+    }, [user, loading, router])
 
-    if (!user) {
-        redirect('/login')
+    useEffect(() => {
+        if (!user) return
+        getDoc(doc(db, 'users', user.uid)).then(snap => {
+            setStartDateStr(snap.data()?.challenge_start_date ?? null)
+        })
+    }, [user])
+
+    async function startChallenge() {
+        if (!user) return
+        setStarting(true)
+        const date = new Date().toISOString()
+        await setDoc(doc(db, 'users', user.uid), { challenge_start_date: date }, { merge: true })
+        setStartDateStr(date)
+        setStarting(false)
     }
 
-    // Fetch user profile
-    const { data: profile } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-
-    const startDateStr = profile?.challenge_start_date
+    if (loading || startDateStr === undefined) {
+        return (
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <div className="w-8 h-8 border-2 border-neon-blue border-t-transparent rounded-full animate-spin" />
+            </div>
+        )
+    }
 
     if (!startDateStr) {
         return (
@@ -34,23 +52,21 @@ export default async function DashboardPage() {
                 <p className="text-white/60 max-w-md">
                     Once you start, you'll get one scenario per day for 30 days. You cannot skip ahead. Missing days will break your streak.
                 </p>
-                <form action={startChallenge}>
-                    <button className="mt-4 bg-white text-black font-bold text-lg px-8 py-4 rounded-xl hover:scale-105 transition-transform flex justify-center items-center gap-2">
-                        Start 30-Day Sprint
-                    </button>
-                </form>
+                <button
+                    onClick={startChallenge}
+                    disabled={starting}
+                    className="mt-4 bg-white text-black font-bold text-lg px-8 py-4 rounded-xl hover:scale-105 transition-transform"
+                >
+                    {starting ? 'Starting...' : 'Start 30-Day Sprint'}
+                </button>
             </div>
         )
     }
 
     const startDate = new Date(startDateStr)
     const now = new Date()
-
-    // Calculate difference in days (0-indexed)
-    const diffTime = Math.abs(now.getTime() - startDate.getTime())
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+    const diffDays = Math.floor(Math.abs(now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
     const currentDay = diffDays + 1
-
     const days = Array.from({ length: 30 }, (_, i) => i + 1)
 
     return (
@@ -62,12 +78,12 @@ export default async function DashboardPage() {
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
                 {days.map((day) => {
-                    const isUnlocked = day <= currentDay;
-                    const isToday = day === currentDay;
+                    const isUnlocked = day <= currentDay
+                    const isToday = day === currentDay
 
                     if (!isUnlocked) {
                         return (
-                            <div key={day} className="glass rounded-xl p-4 flex flex-col items-center justify-center gap-2 aspect-square opacity-50 relative overflow-hidden group">
+                            <div key={day} className="glass rounded-xl p-4 flex flex-col items-center justify-center gap-2 aspect-square opacity-50 relative overflow-hidden">
                                 <div className="absolute inset-0 backdrop-blur-[2px] z-10 flex items-center justify-center">
                                     <Lock className="w-6 h-6 text-white/40" />
                                 </div>
@@ -80,14 +96,10 @@ export default async function DashboardPage() {
                         <Link
                             href={`/dashboard/day/${day}`}
                             key={day}
-                            className={`glass rounded-xl p-4 flex flex-col items-center justify-center gap-2 aspect-square transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-neon-blue ${isToday ? 'border-neon-blue/50 bg-neon-blue/5 shadow-[0_0_15px_rgba(0,240,255,0.1)]' : 'border-white/10 hover:border-white/30'}`}
+                            className={`glass rounded-xl p-4 flex flex-col items-center justify-center gap-2 aspect-square transition-all hover:scale-105 ${isToday ? 'border-neon-blue/50 bg-neon-blue/5 shadow-[0_0_15px_rgba(0,240,255,0.1)]' : 'border-white/10 hover:border-white/30'}`}
                         >
-                            <span className={`font-display font-bold text-2xl ${isToday ? 'neon-text-blue' : 'text-white'}`}>
-                                Day {day}
-                            </span>
-                            {isToday && (
-                                <span className="text-xs font-semibold text-neon-blue uppercase tracking-wider">Today</span>
-                            )}
+                            <span className={`font-display font-bold text-2xl ${isToday ? 'neon-text-blue' : 'text-white'}`}>Day {day}</span>
+                            {isToday && <span className="text-xs font-semibold text-neon-blue uppercase tracking-wider">Today</span>}
                         </Link>
                     )
                 })}

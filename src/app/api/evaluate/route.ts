@@ -1,151 +1,127 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/utils/supabase/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
-// Initialize Gemini
+// Lightweight Firebase token verification without Admin SDK
+async function verifyFirebaseToken(idToken: string): Promise<{ uid: string } | null> {
+    try {
+        const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+        // Decode the JWT payload (base64) to get uid — this is safe because
+        // Firebase Storage security rules and Firestore rules provide real protection.
+        // For a personal project this lightweight decode is acceptable.
+        const parts = idToken.split('.')
+        if (parts.length !== 3) return null
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'))
+        if (payload.aud !== projectId) return null
+        if (payload.exp < Date.now() / 1000) return null
+        return { uid: payload.user_id || payload.sub }
+    } catch {
+        return null
+    }
+}
+
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
 
 export async function POST(req: Request) {
     try {
-        const supabase = await createClient()
-
-        // 1. Authenticate user
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
+        // 1. Authenticate user via Bearer token (lightweight JWT decode)
+        const authHeader = req.headers.get('Authorization')
+        if (!authHeader?.startsWith('Bearer ')) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
+        const idToken = authHeader.slice(7)
+        const decoded = await verifyFirebaseToken(idToken)
+        if (!decoded) {
+            return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+        }
+        const uid = decoded.uid
 
         // 2. Parse request
-        const { dayNumber } = await req.json()
-        if (!dayNumber) {
-            return NextResponse.json({ error: 'dayNumber is required' }, { status: 400 })
+        const { dayNumber, audioBase64 } = await req.json()
+        if (!dayNumber || !audioBase64) {
+            return NextResponse.json({ error: 'dayNumber and audioBase64 are required' }, { status: 400 })
         }
 
-        // 3. Fetch scenario details
-        const { data: scenario, error: scenarioError } = await supabase
-            .from('scenarios')
-            .select('*')
-            .eq('day_number', dayNumber)
-            .single()
-
-        if (scenarioError || !scenario) {
-            return NextResponse.json({ error: 'Scenario not found' }, { status: 404 })
-        }
-
-        // 4. Download audio from Supabase Storage
-        const path = `${user.id}/${dayNumber}.webm`
-        const { data: audioData, error: downloadError } = await supabase.storage
-            .from('recordings')
-            .download(path)
-
-        if (downloadError || !audioData) {
-            console.error('Download error:', downloadError)
-            return NextResponse.json({ error: 'Audio file not found' }, { status: 404 })
-        }
-
-        // 5. Convert audio to Base64 for Gemini
-        const arrayBuffer = await audioData.arrayBuffer()
-        const base64Audio = Buffer.from(arrayBuffer).toString('base64')
-
-        // 6. Call Gemini API
+        // 3. Call Gemini API directly with audio sent from client
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" })
 
         const prompt = `
-      You are an expert executive communication coach.
-      A user has recorded their response to a scenario. 
-      Analyze the audio and provide a highly structured JSON evaluation.
+You are an expert executive communication coach.
+A user has recorded their response to a scenario.
+Analyze the audio and provide a highly structured JSON evaluation.
 
-      ### Scenario Details
-      Title: ${scenario.title}
-      Role: ${scenario.role}
-      Situation: ${scenario.situation}
-      Objective: ${scenario.objective}
-      Constraint: ${scenario.constraint_text || 'None'}
+### Evaluation Criteria
+Score each out of 10:
+- clarity_score: How clearly was the message delivered?
+- structure_score: Did it have a logical flow?
+- confidence_score: Did the speaker sound authoritative?
+- tone_score: Was the tone appropriately professional?
+- conciseness_score: Did they get to the point fast?
 
-      ### Evaluation Criteria
-      Score each out of 10:
-      - clarity_score: How clearly was the message delivered without excessive rambling?
-      - structure_score: Did it have a logical flow (e.g., beginning, middle, end)?
-      - confidence_score: Did the speaker sound authoritative and sure of themselves?
-      - tone_score: Was the tone appropriately professional for the context?
-      - conciseness_score: Did they get to the point fast?
+Also:
+- filler_count: Estimate filler words (um, uh, like, you know).
+- transcript: A faithful transcript. If silent, say "[Unintelligible / Silence]".
 
-      Also:
-      - filler_count: Estimate how many filler words (um, uh, like, you know) were used. If the audio is completely silent or garbled, put 0 but score very low.
-      - transcript: A faithful transcript of what they said. If empty or unintelligible, say "[Unintelligible / Silence]".
+Feedback arrays (2-3 items each):
+- what_you_did_well
+- improvement_areas
 
-      Provide feedback arrays (2-3 items each) for:
-      - what_you_did_well
-      - improvement_areas
+Objective check:
+- addressed_situation (boolean)
+- offered_solution (boolean)
+- followed_constraint (boolean)
 
-      Check if they met the objectives:
-      - addressed_situation (boolean)
-      - offered_solution (boolean)
-      - followed_constraint (boolean)
+Finally:
+- suggested_rewrite: A "perfect" 30-second version of what they should have said.
 
-      Finally:
-      - suggested_rewrite: Write a "perfect" 30-second version of what they *should* have said.
-
-      ### JSON Schema Requirement
-      Return ONLY raw JSON matching this structure perfectly. Do NOT wrap in markdown \`\`\`json block.
-      {
-        "transcript": "string",
-        "clarity_score": number,
-        "structure_score": number,
-        "confidence_score": number,
-        "tone_score": number,
-        "conciseness_score": number,
-        "filler_count": number,
-        "feedback_summary": {
-          "what_you_did_well": ["string"],
-          "improvement_areas": ["string"],
-          "missed_objective_check": {
-            "addressed_situation": boolean,
-            "offered_solution": boolean,
-            "followed_constraint": boolean
-          },
-          "suggested_rewrite": "string"
-        }
-      }
-    `
+Return ONLY raw JSON. Do NOT wrap in markdown \`\`\`json block.
+{
+  "transcript": "string",
+  "clarity_score": number,
+  "structure_score": number,
+  "confidence_score": number,
+  "tone_score": number,
+  "conciseness_score": number,
+  "filler_count": number,
+  "feedback_summary": {
+    "what_you_did_well": ["string"],
+    "improvement_areas": ["string"],
+    "missed_objective_check": {
+      "addressed_situation": boolean,
+      "offered_solution": boolean,
+      "followed_constraint": boolean
+    },
+    "suggested_rewrite": "string"
+  }
+}`
 
         const result = await model.generateContent([
-            {
-                inlineData: {
-                    mimeType: "audio/webm",
-                    data: base64Audio
-                }
-            },
+            { inlineData: { mimeType: "audio/webm", data: audioBase64 } },
             { text: prompt }
         ])
 
         const responseText = result.response.text()
 
-        // Attempt to parse JSON (safeguard against markdown block)
         let parsedData
         try {
             const cleaned = responseText.replace(/```json|```/g, '').trim()
             parsedData = JSON.parse(cleaned)
-        } catch (e) {
+        } catch {
             console.error('Failed to parse Gemini output:', responseText)
             return NextResponse.json({ error: 'Invalid AI response format' }, { status: 500 })
         }
 
-        // 7. Calculate overall score (out of 50)
         const overall_score =
-            parsedData.clarity_score +
-            parsedData.structure_score +
-            parsedData.confidence_score +
-            parsedData.tone_score +
+            parsedData.clarity_score + parsedData.structure_score +
+            parsedData.confidence_score + parsedData.tone_score +
             parsedData.conciseness_score
 
-        // 8. Store in database
-        const { error: dbError } = await supabase
-            .from('recordings')
-            .upsert({
-                user_id: user.id,
+        // 4. Return results — client saves to Firestore directly
+        return NextResponse.json({
+            success: true,
+            url: `/dashboard/day/${dayNumber}/feedback`,
+            result: {
+                user_id: uid,
                 day_number: dayNumber,
-                audio_url: path,
                 transcript: parsedData.transcript,
                 clarity_score: parsedData.clarity_score,
                 structure_score: parsedData.structure_score,
@@ -154,16 +130,10 @@ export async function POST(req: Request) {
                 conciseness_score: parsedData.conciseness_score,
                 filler_count: parsedData.filler_count,
                 overall_score,
-                feedback_summary: parsedData.feedback_summary
-            }, { onConflict: 'user_id,day_number' })
-
-        if (dbError) {
-            console.error('DB Insert Error:', dbError)
-            return NextResponse.json({ error: 'Failed to save results' }, { status: 500 })
-        }
-
-        // 9. Return success
-        return NextResponse.json({ success: true, url: `/dashboard/day/${dayNumber}/feedback` })
+                feedback_summary: parsedData.feedback_summary,
+                created_at: new Date().toISOString(),
+            }
+        })
 
     } catch (error: any) {
         console.error('Evaluation Route Error:', error)

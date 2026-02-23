@@ -1,71 +1,72 @@
-import { createClient } from '@/utils/supabase/server'
-import { redirect } from 'next/navigation'
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Clock, Target, AlertTriangle, User } from 'lucide-react'
 import AudioRecorder from '@/components/ui/AudioRecorder'
+import { useAuth } from '@/lib/firebase/AuthProvider'
+import { db } from '@/lib/firebase/config'
+import { doc, getDoc, collection, query, where, getDocs, limit } from 'firebase/firestore'
 
-export default async function DayPage({
-    params,
-}: {
-    params: Promise<{ day: string }>
-}) {
-    const { day } = await params
-    const dayNumber = parseInt(day, 10)
+export default function DayPage() {
+    const params = useParams()
+    const dayNumber = parseInt(params.day as string, 10)
+    const router = useRouter()
+    const { user, loading } = useAuth()
+    const [scenario, setScenario] = useState<any>(null)
+    const [dataLoading, setDataLoading] = useState(true)
 
-    if (isNaN(dayNumber) || dayNumber < 1 || dayNumber > 30) {
-        redirect('/dashboard')
-    }
+    useEffect(() => {
+        if (!loading && !user) router.replace('/login')
+    }, [user, loading, router])
 
-    const supabase = await createClient()
+    useEffect(() => {
+        if (isNaN(dayNumber) || dayNumber < 1 || dayNumber > 30) {
+            router.replace('/dashboard')
+            return
+        }
+        if (!user) return
 
-    const {
-        data: { user },
-    } = await supabase.auth.getUser()
+        async function load() {
+            // Check eligibility
+            const profileSnap = await getDoc(doc(db, 'users', user!.uid))
+            const startDateStr = profileSnap.data()?.challenge_start_date
+            if (!startDateStr) { router.replace('/dashboard'); return }
 
-    if (!user) {
-        redirect('/login')
-    }
+            const diffDays = Math.floor(Math.abs(Date.now() - new Date(startDateStr).getTime()) / 86400000)
+            const currentDay = diffDays + 1
+            if (dayNumber > currentDay) { router.replace('/dashboard'); return }
 
-    // Fetch user profile to check eligibility
-    const { data: profile } = await supabase
-        .from('users')
-        .select('challenge_start_date')
-        .eq('id', user.id)
-        .single()
+            // Fetch scenario
+            const q = query(collection(db, 'scenarios'), where('day_number', '==', dayNumber), limit(1))
+            const snap = await getDocs(q)
 
-    const startDateStr = profile?.challenge_start_date
+            if (!snap.empty) {
+                setScenario(snap.docs[0].data())
+            } else {
+                // Placeholder if scenario not seeded yet
+                setScenario({
+                    title: 'Daily Scenario',
+                    situation: 'You are on a weekly sync call and need to provide an update on the project.',
+                    role: 'Project Manager',
+                    objective: 'Clearly state what was accomplished last week and identify one blocker.',
+                    constraint_text: 'Do not use filler words like "um" or "like".',
+                    time_limit: 90
+                })
+            }
+            setDataLoading(false)
+        }
 
-    if (!startDateStr) {
-        redirect('/dashboard') // Challenge not started
-    }
+        load()
+    }, [user, dayNumber, router])
 
-    const startDate = new Date(startDateStr)
-    const now = new Date()
-    const diffTime = Math.abs(now.getTime() - startDate.getTime())
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
-    const currentDay = diffDays + 1
-
-    if (dayNumber > currentDay) {
-        redirect('/dashboard') // Trying to skip ahead
-    }
-
-    // Fetch the scenario
-    const { data: scenario, error } = await supabase
-        .from('scenarios')
-        .select('*')
-        .eq('day_number', dayNumber)
-        .single()
-
-    // For development, if scenario is missing, we use a placeholder instead of breaking
-    const s = scenario || {
-        id: 'placeholder',
-        day_number: dayNumber,
-        title: 'Development Placeholder Scenario',
-        situation: 'You are on a weekly sync call and need to provide an update on the project.',
-        role: 'Project Manager',
-        objective: 'Clearly state what was accomplished last week and identify one blocker.',
-        constraint_text: 'Do not use filler words like "um" or "like".',
-        time_limit: 90
+    if (loading || dataLoading || !scenario) {
+        return (
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <div className="w-8 h-8 border-2 border-neon-blue border-t-transparent rounded-full animate-spin" />
+            </div>
+        )
     }
 
     return (
@@ -76,7 +77,7 @@ export default async function DayPage({
                 </Link>
                 <div>
                     <h1 className="text-xl font-display font-bold neon-text-blue">Day {dayNumber}</h1>
-                    <p className="text-2xl font-display font-bold">{s.title}</p>
+                    <p className="text-2xl font-display font-bold">{scenario.title}</p>
                 </div>
             </div>
 
@@ -85,39 +86,33 @@ export default async function DayPage({
                     <h3 className="text-sm font-bold uppercase tracking-widest text-white/50 mb-2 flex items-center gap-2">
                         <User className="w-4 h-4" /> Your Role
                     </h3>
-                    <p className="text-lg font-medium">{s.role}</p>
+                    <p className="text-lg font-medium">{scenario.role}</p>
                 </div>
-
                 <div>
-                    <h3 className="text-sm font-bold uppercase tracking-widest text-white/50 mb-2">
-                        Situation
-                    </h3>
-                    <p className="text-lg leading-relaxed text-white/90">{s.situation}</p>
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-white/50 mb-2">Situation</h3>
+                    <p className="text-lg leading-relaxed text-white/90">{scenario.situation}</p>
                 </div>
-
                 <div className="bg-neon-blue/5 border border-neon-blue/20 rounded-xl p-4">
                     <h3 className="text-sm font-bold uppercase tracking-widest text-neon-blue mb-2 flex items-center gap-2">
                         <Target className="w-4 h-4" /> Objective
                     </h3>
-                    <p className="text-lg text-white font-medium">{s.objective}</p>
+                    <p className="text-lg text-white font-medium">{scenario.objective}</p>
                 </div>
-
-                {s.constraint_text && (
+                {scenario.constraint_text && (
                     <div className="bg-neon-violet/5 border border-neon-violet/20 rounded-xl p-4">
                         <h3 className="text-sm font-bold uppercase tracking-widest text-neon-violet mb-2 flex items-center gap-2">
                             <AlertTriangle className="w-4 h-4" /> Constraint
                         </h3>
-                        <p className="text-lg text-white font-medium">{s.constraint_text}</p>
+                        <p className="text-lg text-white font-medium">{scenario.constraint_text}</p>
                     </div>
                 )}
-
                 <div className="flex items-center gap-2 text-white/50 text-sm font-semibold uppercase tracking-widest pt-4">
-                    <Clock className="w-4 h-4" /> Time Limit: {s.time_limit} Seconds
+                    <Clock className="w-4 h-4" /> Time Limit: {scenario.time_limit} Seconds
                 </div>
             </div>
 
             <div className="mt-4">
-                <AudioRecorder dayNumber={dayNumber} timeLimit={s.time_limit} />
+                <AudioRecorder dayNumber={dayNumber} timeLimit={scenario.time_limit} />
             </div>
         </div>
     )
