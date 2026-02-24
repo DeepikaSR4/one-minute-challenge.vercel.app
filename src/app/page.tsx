@@ -1,7 +1,12 @@
+'use client'
 import Link from "next/link";
 import { ArrowRight, Mic, PlayCircle, Brain, Flame } from "lucide-react";
+import { useAuth } from "@/lib/firebase/AuthProvider";
 
 export default function Home() {
+  const { user } = useAuth()
+  const ctaHref = user ? '/dashboard' : '/login'
+  const ctaLabel = user ? 'Go to Dashboard' : 'Start Sprint'
   return (
     <div className="flex flex-col min-h-screen">
 
@@ -27,11 +32,11 @@ export default function Home() {
           {/* Right Side */}
           <div className="flex items-center gap-4 sm:gap-6">
             <Link
-              href="/login"
+              href={ctaHref}
               className="relative group px-5 py-2.5 bg-white text-black rounded-xl text-sm font-bold transition-all hover:scale-105 overflow-hidden"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-neon-blue/20 to-neon-violet/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <span className="relative z-10">Start Sprint</span>
+              <span className="relative z-10">{ctaLabel}</span>
             </Link>
           </div>
         </div>
@@ -66,10 +71,10 @@ export default function Home() {
 
           <div className="pt-6 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
-              href="/login"
+              href={ctaHref}
               className="group relative inline-flex items-center justify-center gap-2 px-8 py-4 bg-white text-black rounded-xl font-bold text-lg transition-transform hover:scale-105"
             >
-              Start 30-Day Sprint
+              {user ? 'Go to Dashboard' : 'Start 30-Day Sprint'}
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
             <p className="text-sm text-white/40">
