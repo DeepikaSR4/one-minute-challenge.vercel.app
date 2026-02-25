@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Clock, Target, AlertTriangle, User } from 'lucide-react'
+import { ArrowLeft, Clock, Target, AlertTriangle, User, CheckCircle2 } from 'lucide-react'
 import AudioRecorder from '@/components/ui/AudioRecorder'
 import { useAuth } from '@/lib/firebase/AuthProvider'
 import { db } from '@/lib/firebase/config'
@@ -15,6 +15,7 @@ export default function DayPage() {
     const router = useRouter()
     const { user, loading } = useAuth()
     const [scenario, setScenario] = useState<any>(null)
+    const [attempts, setAttempts] = useState<any[]>([])
     const [dataLoading, setDataLoading] = useState(true)
 
     useEffect(() => {
@@ -29,35 +30,36 @@ export default function DayPage() {
         if (!user) return
 
         async function load() {
-            // Check eligibility
             const profileSnap = await getDoc(doc(db, 'users', user!.uid))
             const startDateStr = profileSnap.data()?.challenge_start_date
             if (!startDateStr) { router.replace('/dashboard'); return }
 
             const diffDays = Math.floor(Math.abs(Date.now() - new Date(startDateStr).getTime()) / 86400000)
-            const currentDay = diffDays + 1
-            if (dayNumber > currentDay) { router.replace('/dashboard'); return }
+            if (dayNumber > diffDays + 1) { router.replace('/dashboard'); return }
 
             // Fetch scenario
             const q = query(collection(db, 'scenarios'), where('day_number', '==', dayNumber), limit(1))
             const snap = await getDocs(q)
+            setScenario(snap.empty ? {
+                title: 'Daily Scenario',
+                situation: 'You are on a weekly sync call and need to provide an update on the project.',
+                role: 'Project Manager',
+                objective: 'Clearly state what was accomplished last week and identify one blocker.',
+                constraint_text: 'Do not use filler words like "um" or "like".',
+                time_limit: 90
+            } : snap.docs[0].data())
 
-            if (!snap.empty) {
-                setScenario(snap.docs[0].data())
-            } else {
-                // Placeholder if scenario not seeded yet
-                setScenario({
-                    title: 'Daily Scenario',
-                    situation: 'You are on a weekly sync call and need to provide an update on the project.',
-                    role: 'Project Manager',
-                    objective: 'Clearly state what was accomplished last week and identify one blocker.',
-                    constraint_text: 'Do not use filler words like "um" or "like".',
-                    time_limit: 90
-                })
-            }
+            // Fetch ALL attempts for this day, newest first
+            const recSnap = await getDocs(
+                query(collection(db, 'recordings'), where('user_id', '==', user!.uid), where('day_number', '==', dayNumber))
+            )
+            const recs = recSnap.docs
+                .map(d => ({ ...d.data(), id: d.id }))
+                .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            setAttempts(recs)
+
             setDataLoading(false)
         }
-
         load()
     }, [user, dayNumber, router])
 
@@ -81,6 +83,39 @@ export default function DayPage() {
                 </div>
             </div>
 
+            {/* Previous attempts */}
+            {attempts.length > 0 && (
+                <div className="flex flex-col gap-2">
+                    <p className="text-xs font-bold uppercase tracking-widest text-white/40">
+                        {attempts.length === 1 ? 'Your Attempt' : `Your ${attempts.length} Attempts`}
+                    </p>
+                    {attempts.map((rec, i) => (
+                        <div key={rec.id} className="flex items-center justify-between p-4 rounded-xl bg-neon-green/5 border border-neon-green/20">
+                            <div className="flex items-center gap-3">
+                                <CheckCircle2 className="w-4 h-4 text-neon-green shrink-0" />
+                                <div>
+                                    <p className="text-sm font-semibold text-white">
+                                        Attempt {attempts.length - i}
+                                        <span className="ml-2 text-neon-green font-bold">{rec.overall_score}/50</span>
+                                    </p>
+                                    <p className="text-xs text-white/40 mt-0.5">
+                                        Clarity {rec.clarity_score} · Confidence {rec.confidence_score} · Conciseness {rec.conciseness_score}
+                                        {rec.created_at && ` · ${new Date(rec.created_at).toLocaleDateString()}`}
+                                    </p>
+                                </div>
+                            </div>
+                            <Link
+                                href={`/dashboard/day/${dayNumber}/feedback?id=${rec.id}`}
+                                className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-lg border border-neon-green/30 text-neon-green hover:bg-neon-green/10 transition-colors"
+                            >
+                                View →
+                            </Link>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Scenario card */}
             <div className="glass p-6 md:p-8 rounded-2xl border-white/10 space-y-6 break-words">
                 <div>
                     <h3 className="text-sm font-bold uppercase tracking-widest text-white/50 mb-2 flex items-center gap-2">
@@ -111,7 +146,11 @@ export default function DayPage() {
                 </div>
             </div>
 
-            <div className="mt-4">
+            {/* Recorder */}
+            <div className="mt-2">
+                {attempts.length > 0 && (
+                    <p className="text-xs text-white/40 text-center mb-3">Want to try again? Record a new attempt below.</p>
+                )}
                 <AudioRecorder dayNumber={dayNumber} timeLimit={scenario.time_limit} />
             </div>
         </div>

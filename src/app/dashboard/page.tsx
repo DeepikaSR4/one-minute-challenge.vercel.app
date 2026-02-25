@@ -4,14 +4,15 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { db } from '@/lib/firebase/config'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { useAuth } from '@/lib/firebase/AuthProvider'
-import { Lock, Play } from 'lucide-react'
+import { Lock, Play, CheckCircle2 } from 'lucide-react'
 
 export default function DashboardPage() {
     const { user, loading } = useAuth()
     const router = useRouter()
     const [startDateStr, setStartDateStr] = useState<string | null | undefined>(undefined)
+    const [completedDays, setCompletedDays] = useState<Set<number>>(new Set())
     const [starting, setStarting] = useState(false)
 
     useEffect(() => {
@@ -20,8 +21,14 @@ export default function DashboardPage() {
 
     useEffect(() => {
         if (!user) return
+        // Load user profile
         getDoc(doc(db, 'users', user.uid)).then(snap => {
             setStartDateStr(snap.data()?.challenge_start_date ?? null)
+        })
+        // Load completed days
+        getDocs(query(collection(db, 'recordings'), where('user_id', '==', user.uid))).then(snap => {
+            const days = new Set<number>(snap.docs.map(d => d.data().day_number))
+            setCompletedDays(days)
         })
     }, [user])
 
@@ -80,14 +87,15 @@ export default function DashboardPage() {
                 {days.map((day) => {
                     const isUnlocked = day <= currentDay
                     const isToday = day === currentDay
+                    const isDone = completedDays.has(day)
 
                     if (!isUnlocked) {
                         return (
-                            <div key={day} className="glass rounded-xl p-4 flex flex-col items-center justify-center gap-2 aspect-square opacity-50 relative overflow-hidden">
+                            <div key={day} className="glass rounded-xl p-4 flex flex-col items-center justify-center gap-2 aspect-square opacity-40 relative overflow-hidden">
                                 <div className="absolute inset-0 backdrop-blur-[2px] z-10 flex items-center justify-center">
-                                    <Lock className="w-6 h-6 text-white/40" />
+                                    <Lock className="w-6 h-6 text-white/30" />
                                 </div>
-                                <span className="font-display font-bold text-xl text-white/40">Day {day}</span>
+                                <span className="font-display font-bold text-xl text-white/30">Day {day}</span>
                             </div>
                         )
                     }
@@ -96,10 +104,27 @@ export default function DashboardPage() {
                         <Link
                             href={`/dashboard/day/${day}`}
                             key={day}
-                            className={`glass rounded-xl p-4 flex flex-col items-center justify-center gap-2 aspect-square transition-all hover:scale-105 ${isToday ? 'border-neon-blue/50 bg-neon-blue/5 shadow-[0_0_15px_rgba(0,240,255,0.1)]' : 'border-white/10 hover:border-white/30'}`}
+                            className={`relative glass rounded-xl p-4 flex flex-col items-center justify-center gap-2 aspect-square transition-all hover:scale-105 ${isDone
+                                    ? 'border-neon-green/40 bg-neon-green/5'
+                                    : isToday
+                                        ? 'border-neon-blue/50 bg-neon-blue/5 shadow-[0_0_15px_rgba(0,240,255,0.1)]'
+                                        : 'border-white/10 hover:border-white/30'
+                                }`}
                         >
-                            <span className={`font-display font-bold text-2xl ${isToday ? 'neon-text-blue' : 'text-white'}`}>Day {day}</span>
-                            {isToday && <span className="text-xs font-semibold text-neon-blue uppercase tracking-wider">Today</span>}
+                            {/* Completed badge */}
+                            {isDone && (
+                                <CheckCircle2 className="absolute top-2 right-2 w-4 h-4 text-neon-green" />
+                            )}
+                            <span className={`font-display font-bold text-2xl ${isDone ? 'text-neon-green' : isToday ? 'neon-text-blue' : 'text-white'
+                                }`}>
+                                Day {day}
+                            </span>
+                            {isToday && !isDone && (
+                                <span className="text-xs font-semibold text-neon-blue uppercase tracking-wider">Today</span>
+                            )}
+                            {isDone && (
+                                <span className="text-xs font-semibold text-neon-green/70 uppercase tracking-wider">Done</span>
+                            )}
                         </Link>
                     )
                 })}

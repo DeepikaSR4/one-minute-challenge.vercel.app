@@ -1,15 +1,17 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, CheckCircle2, XCircle, TrendingUp, RefreshCcw } from 'lucide-react'
 import { useAuth } from '@/lib/firebase/AuthProvider'
 import { db } from '@/lib/firebase/config'
-import { collection, query, where, getDocs, limit } from 'firebase/firestore'
+import { doc, getDoc, collection, query, where, getDocs, limit, orderBy } from 'firebase/firestore'
 
 export default function FeedbackPage() {
     const params = useParams()
+    const searchParams = useSearchParams()
+    const recordingId = searchParams.get('id')
     const dayNumber = parseInt(params.day as string, 10)
     const router = useRouter()
     const { user, loading } = useAuth()
@@ -22,17 +24,27 @@ export default function FeedbackPage() {
 
     useEffect(() => {
         if (!user) return
-        const q = query(
-            collection(db, 'recordings'),
-            where('user_id', '==', user.uid),
-            where('day_number', '==', dayNumber),
-            limit(1)
-        )
-        getDocs(q).then(snap => {
-            setRecording(snap.empty ? null : snap.docs[0].data())
+
+        async function load() {
+            if (recordingId) {
+                // Load specific attempt by doc ID
+                const snap = await getDoc(doc(db, 'recordings', recordingId))
+                if (snap.exists()) setRecording({ ...snap.data(), id: snap.id })
+            } else {
+                // Fall back: load most recent attempt for this day
+                const q = query(
+                    collection(db, 'recordings'),
+                    where('user_id', '==', user!.uid),
+                    where('day_number', '==', dayNumber),
+                    limit(1)
+                )
+                const snap = await getDocs(q)
+                if (!snap.empty) setRecording({ ...snap.docs[0].data(), id: snap.docs[0].id })
+            }
             setDataLoading(false)
-        })
-    }, [user, dayNumber])
+        }
+        load()
+    }, [user, dayNumber, recordingId])
 
     if (loading || dataLoading) {
         return (

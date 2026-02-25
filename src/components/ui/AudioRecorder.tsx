@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Mic, Square, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { auth, db } from '@/lib/firebase/config'
-import { doc, setDoc } from 'firebase/firestore'
+import { collection, addDoc, updateDoc } from 'firebase/firestore'
 
 export default function AudioRecorder({ dayNumber, timeLimit = 90 }: { dayNumber: number, timeLimit?: number }) {
     const router = useRouter()
@@ -89,11 +89,12 @@ export default function AudioRecorder({ dayNumber, timeLimit = 90 }: { dayNumber
             const data = await response.json()
             if (!response.ok) throw new Error(data.error || "Evaluation failed")
 
-            // Save result to Firestore from client
-            const recordingRef = doc(db, 'recordings', `${user.uid}_day${dayNumber}`)
-            await setDoc(recordingRef, data.result)
+            // Each attempt gets its own auto-ID so previous entries are never overwritten
+            const docRef = await addDoc(collection(db, 'recordings'), data.result)
+            // Store the doc ID inside the document itself for direct lookup
+            await updateDoc(docRef, { id: docRef.id })
 
-            router.push(data.url || `/dashboard/day/${dayNumber}/feedback`)
+            router.push(`/dashboard/day/${dayNumber}/feedback?id=${docRef.id}`)
         } catch (error) {
             console.error(error)
             alert("Something went wrong analyzing your audio. Please try again.")
