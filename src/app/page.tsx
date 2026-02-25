@@ -130,6 +130,11 @@ export default function Home() {
         </section>
 
       </main>
+
+      <footer className="py-8 text-center border-t border-white/5">
+        <p className="text-sm font-display font-bold text-white/80">OneMinute</p>
+        <p className="text-xs text-white/30 mt-1">A product by SansAI ❤️</p>
+      </footer>
     </div>
   );
 }
