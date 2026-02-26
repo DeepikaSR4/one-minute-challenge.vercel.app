@@ -60,7 +60,7 @@ export default function DashboardLayout({
 
     return (
         <div className="flex flex-col min-h-screen bg-background">
-            <header className="px-6 py-4 flex items-center justify-between border-b border-white/10 glass sticky top-0 z-50">
+            <header className="px-4 sm:px-6 py-4 flex items-center justify-between border-b border-white/10 glass sticky top-0 z-50">
                 <Logo />
                 <div className="flex items-center gap-4 text-sm font-medium text-white/80">
                     {streak >= 2 && (

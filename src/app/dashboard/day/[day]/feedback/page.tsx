@@ -75,12 +75,12 @@ export default function FeedbackPage() {
                 </Link>
                 <div>
                     <h1 className="text-xl font-display font-bold text-white/60">Day {dayNumber} Feedback</h1>
-                    <p className="text-3xl font-display font-bold"><span className="neon-text-blue">Analysis Complete</span></p>
+                    <p className="text-2xl sm:text-3xl font-display font-bold"><span className="neon-text-blue">Analysis Complete</span></p>
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-                <div className="md:col-span-2 glass p-6 rounded-2xl border-neon-blue/30 flex flex-col items-center justify-center text-center shadow-[0_0_30px_rgba(0,240,255,0.1)]">
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                <div className="col-span-2 sm:col-span-4 md:col-span-2 glass p-5 rounded-2xl border-neon-blue/30 flex flex-col items-center justify-center text-center shadow-[0_0_30px_rgba(0,240,255,0.1)]">
                     <span className="text-5xl font-display font-bold neon-text-blue">{r.overall_score}<span className="text-2xl text-white/40">/50</span></span>
                     <span className="text-sm font-bold uppercase tracking-widest text-white/60 mt-2">Overall Score</span>
                 </div>

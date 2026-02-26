@@ -45,7 +45,7 @@ export default function MilestonePage() {
                     </Link>
                     <div>
                         <h1 className="text-xl font-display font-bold text-white/60">Milestone</h1>
-                        <p className="text-3xl font-display font-bold"><span className="neon-text-blue">Day {dayNumber} Review</span></p>
+                        <p className="text-2xl sm:text-3xl font-display font-bold"><span className="neon-text-blue">Day {dayNumber} Review</span></p>
                     </div>
                 </div>
                 <button className="flex items-center gap-2 px-4 py-2 glass rounded-xl border-white/20 hover:bg-white/10 transition-colors text-sm font-semibold">
@@ -57,14 +57,14 @@ export default function MilestonePage() {
                 <div className="absolute -top-20 -left-20 w-64 h-64 bg-neon-blue/20 rounded-full blur-[80px] -z-10" />
                 <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-neon-violet/20 rounded-full blur-[80px] -z-10" />
 
-                <div className="text-center space-y-2 mb-10">
-                    <h2 className="text-5xl md:text-6xl font-display font-bold tracking-tighter">{stats.badge_text}</h2>
+                <div className="text-center space-y-2 mb-8">
+                    <h2 className="text-3xl sm:text-4xl md:text-5xl font-display font-bold tracking-tighter leading-tight">{stats.badge_text}</h2>
                     <p className="text-xl text-white/60 font-sans mt-4">
                         <Logo className="mx-auto" /> {dayNumber}-Day Progress Report
                     </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                     <div className="glass p-6 rounded-2xl flex flex-col gap-2">
                         <TrendingUp className="w-6 h-6 text-neon-green" />
                         <span className="text-3xl font-display font-bold text-white">{stats.improvement_percent}%</span>

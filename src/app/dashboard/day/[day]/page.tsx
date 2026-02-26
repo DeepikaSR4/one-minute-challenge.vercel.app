@@ -116,29 +116,29 @@ export default function DayPage() {
             )}
 
             {/* Scenario card */}
-            <div className="glass p-6 md:p-8 rounded-2xl border-white/10 space-y-6 break-words">
+            <div className="glass p-5 md:p-8 rounded-2xl border-white/10 space-y-5 break-words">
                 <div>
                     <h3 className="text-sm font-bold uppercase tracking-widest text-white/50 mb-2 flex items-center gap-2">
                         <User className="w-4 h-4" /> Your Role
                     </h3>
-                    <p className="text-lg font-medium">{scenario.role}</p>
+                    <p className="text-base sm:text-lg font-medium">{scenario.role}</p>
                 </div>
                 <div>
                     <h3 className="text-sm font-bold uppercase tracking-widest text-white/50 mb-2">Situation</h3>
-                    <p className="text-lg leading-relaxed text-white/90">{scenario.situation}</p>
+                    <p className="text-base sm:text-lg leading-relaxed text-white/90">{scenario.situation}</p>
                 </div>
                 <div className="bg-neon-blue/5 border border-neon-blue/20 rounded-xl p-4">
                     <h3 className="text-sm font-bold uppercase tracking-widest text-neon-blue mb-2 flex items-center gap-2">
                         <Target className="w-4 h-4" /> Objective
                     </h3>
-                    <p className="text-lg text-white font-medium">{scenario.objective}</p>
+                    <p className="text-base sm:text-lg text-white font-medium">{scenario.objective}</p>
                 </div>
                 {scenario.constraint_text && (
                     <div className="bg-neon-violet/5 border border-neon-violet/20 rounded-xl p-4">
                         <h3 className="text-sm font-bold uppercase tracking-widest text-neon-violet mb-2 flex items-center gap-2">
                             <AlertTriangle className="w-4 h-4" /> Constraint
                         </h3>
-                        <p className="text-lg text-white font-medium">{scenario.constraint_text}</p>
+                        <p className="text-base sm:text-lg text-white font-medium">{scenario.constraint_text}</p>
                     </div>
                 )}
                 <div className="flex items-center gap-2 text-white/50 text-sm font-semibold uppercase tracking-widest pt-4">

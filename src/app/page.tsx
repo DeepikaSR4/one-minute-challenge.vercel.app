@@ -11,7 +11,7 @@ export default function Home() {
     <div className="flex flex-col min-h-screen">
 
       {/* Header */}
-      <header className="fixed top-6 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-5xl z-50">
+      <header className="fixed top-4 sm:top-6 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] sm:w-[calc(100%-3rem)] max-w-5xl z-50">
         <div className="relative glass rounded-2xl px-6 py-4 flex items-center justify-between border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
           <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent rounded-t-2xl" />
 
@@ -48,7 +48,7 @@ export default function Home() {
             30 Days to Sound Confident
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-display font-bold tracking-tight leading-tight">
+          <h1 className="text-4xl sm:text-5xl md:text-7xl font-display font-bold tracking-tight leading-tight">
             Stop freezing when<br />it's your turn to speak.<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-neon-blue to-neon-violet">
               Train how you express yourself.
@@ -60,7 +60,7 @@ export default function Home() {
             OneMinute helps you practice speaking clearly — in real-world situations — one minute at a time.
           </p>
 
-          <div className="pt-6 flex flex-col sm:flex-row items-center justify-center gap-4">
+          <div className="pt-6 flex flex-col items-center justify-center gap-3">
             <Link
               href={ctaHref}
               className="group relative inline-flex items-center justify-center gap-2 px-8 py-4 bg-white text-black rounded-xl font-bold text-lg transition-transform hover:scale-105"
@@ -76,10 +76,10 @@ export default function Home() {
         </div>
 
         {/* Problem Section */}
-        <section className="max-w-4xl mx-auto mt-32 space-y-10 text-center px-4">
-          <h2 className="text-3xl font-display font-bold">This is what usually happens:</h2>
+        <section className="max-w-4xl mx-auto mt-24 sm:mt-32 space-y-8 sm:space-y-10 text-center px-4">
+          <h2 className="text-2xl sm:text-3xl font-display font-bold">This is what usually happens:</h2>
 
-          <div className="space-y-4 text-white/60 text-lg">
+          <div className="space-y-3 text-white/60 text-base sm:text-lg text-left max-w-xl mx-auto">
             <p>• You know what you want to say — but it doesn't come out right.</p>
             <p>• You start speaking — and lose structure halfway.</p>
             <p>• You use filler words to buy time.</p>
